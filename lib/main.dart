@@ -138,13 +138,23 @@ class _MyHomePageState extends State<MyHomePage> {
               tooltip: 'Increase volume by 10',
               onPressed: () {
                 setState(() {
-                  _volume += 10;
-                  if (_volume > 100) {
+                  _volume -= 10;
+                  if (_volume < 0) {
                     _volume = 0;
                   }
                 });
               },
             ),
+            IconButton(
+                icon: Icon(Icons.volume_up),
+                onPressed: () {
+                  setState(() {
+                    _volume += 10;
+                    if(_volume >= 100){
+                      _volume = 100;
+                    }
+                  });
+                }),
             Text('Volume : $_volume')
           ],
         ),
