@@ -1,405 +1,252 @@
+import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:intl/date_symbol_data_local.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:splashscreen/splashscreen.dart';
+import 'package:flutter_week_view/flutter_week_view.dart';
+import 'package:url_launcher/url_launcher.dart' as launcher;
 
-// Example holidays
-final Map<DateTime, List> _holidays = {
-  DateTime(2021, 1, 1): ['New Year\'s Day'],
-  DateTime(2021, 1, 6): ['Epiphany'],
-  DateTime(2021, 2, 14): ['Valentine\'s Day'],
-  DateTime(2021, 4, 21): ['Easter Sunday'],
-  DateTime(2021, 4, 22): ['Easter Monday'],
-};
+import './tabMonthCalendar.dart';
+import './tabPrincipal.dart';
+import './tabSettings.dart';
+import './pageAddEvent.dart';
+import './dayView.dart';
 
-void main() {
-  initializeDateFormatting().then((_) => runApp(MyApp()));
-}
+void main() => runApp(MyApp());
 
 class MyApp extends StatelessWidget {
+  // WIDGET BUILD---
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Table Calendar Demo',
-      theme: ThemeData(
-        primarySwatch: Colors.pink,
-      ),
-      home: MyHomePage(title: 'Table Calendar Demo'),
+      title: 'Calendrier Bouks',
+      //theme: ThemeData(
+      // primarySwatch: Colors.pink,
+      // ),
+      home: HomePage(),
     );
   }
 }
 
-class MyHomePage extends StatefulWidget {
-  MyHomePage({Key key, this.title}) : super(key: key);
-
-  final String title;
-
-  @override
-  _MyHomePageState createState() => _MyHomePageState();
+class AfterSplashPage extends StatefulWidget {
+  AfterSplash createState() => AfterSplash();
 }
 
-class _MyHomePageState extends State<MyHomePage> with TickerProviderStateMixin {
-  Map<DateTime, List> _events;
-  List _selectedEvents;
-  int _counter = 0;
-  AnimationController _animationController;
-  CalendarController _calendarController;
-  void _incrementCounter() { // Fn Action à l'appui du bouton
-    setState(() {
-      _counter = _counter + 2; // inventer qqch
-    });
+class HomePage extends StatefulWidget {
+  @override
+  _HomePageState createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> {
+  @override
+  Widget build(BuildContext context) {
+    return new SplashScreen(
+        seconds: 2,
+        navigateAfterSeconds: new AfterSplashPage(),
+        title: new Text(
+          'Bienvenue :)\nChargement en cours...',
+          textAlign: TextAlign.center,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+              fontWeight: FontWeight.bold, fontSize: 25, color: Colors.white),
+        ),
+        image: new Image.asset('assets/images/dogecoin.png'),
+        //backgroundColor: Colors.white,
+
+        gradientBackground: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment(0.0, 2),
+          colors: [const Color(0xFF0E86D4), const Color(0xFF800028)],
+        ),
+        styleTextUnderTheLoader: new TextStyle(),
+        photoSize: 50.0,
+        loaderColor: Colors.indigo[500]);
   }
+}
+
+class AfterSplash extends State<AfterSplashPage> with TickerProviderStateMixin {
+  CalendarController _controller;
+  Map<DateTime, List<dynamic>> _events;
+  List<dynamic> _selectedEvents;
+  TextEditingController _eventController;
+  AnimationController _animationController;
+  SharedPreferences prefs;
+  var eventsDetailled;
+  static var tabIndex;
   @override
   void initState() {
     super.initState();
-    final _selectedDay = DateTime.now();
-
-    _events = {
-      _selectedDay.subtract(Duration(days: 30)): [
-        'Event A0',
-        'Event B0',
-        'Event C0'
-      ],
-      _selectedDay.subtract(Duration(days: 27)): ['Event A1'],
-      _selectedDay.subtract(Duration(days: 20)): [
-        'Event A2',
-        'Event B2',
-        'Event C2',
-        'Event D2'
-      ],
-      _selectedDay.subtract(Duration(days: 16)): ['Event A3', 'Event B3'],
-      _selectedDay.subtract(Duration(days: 10)): [
-        'Event A4',
-        'Event B4',
-        'Event C4'
-      ],
-      _selectedDay.subtract(Duration(days: 4)): [
-        'Event A5',
-        'Event B5',
-        'Event C5'
-      ],
-      _selectedDay.subtract(Duration(days: 2)): ['Event A6', 'Event B6'],
-      _selectedDay: ['Aujourdhui', 'Event B7', 'Event C7', 'Event D7'],
-      _selectedDay.add(Duration(days: 1)): [
-        'Event A8',
-        'Event B8',
-        'Event C8',
-        'Event D8'
-      ],
-      _selectedDay.add(Duration(days: 3)):
-      Set.from(['Event A9', 'Event A9', 'Event B9']).toList(),
-      _selectedDay.add(Duration(days: 7)): [
-        'Event A10',
-        'Event B10',
-        'Event C10'
-      ],
-      _selectedDay.add(Duration(days: 11)): ['Event A11', 'Event B11'],
-      _selectedDay.add(Duration(days: 17)): [
-        'Event A12',
-        'Event B12',
-        'Event C12',
-        'Event D12'
-      ],
-      _selectedDay.add(Duration(days: 22)): ['Event A13', 'Event B13'],
-      _selectedDay.add(Duration(days: 26)): [
-        'Event A14',
-        'Event B14',
-        'Event C14'
-      ],
-    };
-
-    _selectedEvents = _events[_selectedDay] ?? [];
-    _calendarController = CalendarController();
+    _controller = CalendarController();
+    _eventController = TextEditingController();
+    _events = {};
+    _selectedEvents = [];
+    tabIndex = 0;
+    initPrefs();
+    eventsDetailled = [
+      FlutterWeekViewEvent(
+        title: 'Changer les pneus de la Tesla',
+        description: 'changement saisonnier',
+        start: DateTime.parse("2021-04-04 20:18:00Z"),
+        end: DateTime.parse("2021-04-04 22:00:00Z"),
+      ),
+      FlutterWeekViewEvent(
+        title: 'Regarder Jojo<s bizarre adventure',
+        description: 'A description 2',
+        start: DateTime.parse("2021-04-04 21:30:00Z"),
+        end: DateTime.parse("2021-04-04 23:30:00Z"),
+        backgroundColor: Colors.green[800],
+      )
+    ];
 
     _animationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 400),
     );
-
-    _animationController.forward();
   }
 
-  @override
-  void dispose() {
-    _animationController.dispose();
-    _calendarController.dispose();
-    super.dispose();
+  void _handleTabIndex() {
+    setState(() {});
   }
 
-  void _onDaySelected(DateTime day, List events, List holidays) {
-    print('CALLBACK: _onDaySelected');
+  // Méthode Init stockage de données via SharedPref
+  initPrefs() async {
+    prefs = await SharedPreferences.getInstance();
     setState(() {
-      _selectedEvents = events;
+      _events = Map<DateTime, List<dynamic>>.from(
+          decodeMap(json.decode(prefs.getString("events") ?? "{}")));
     });
   }
 
-  void _onVisibleDaysChanged(
-      DateTime first, DateTime last, CalendarFormat format) {
-    print('CALLBACK: _onVisibleDaysChanged');
+  // Encodage Map
+  Map<String, dynamic> encodeMap(Map<DateTime, dynamic> map) {
+    Map<String, dynamic> newMap = {};
+    map.forEach((key, value) {
+      newMap[key.toString()] = map[key];
+    });
+    newMap.removeWhere((key, value) => key == null || value == null);
+    return newMap;
   }
 
-  void _onCalendarCreated(
-      DateTime first, DateTime last, CalendarFormat format) {
-    print('CALLBACK: _onCalendarCreated');
+  // Décodage map
+  Map<DateTime, dynamic> decodeMap(Map<String, dynamic> map) {
+    Map<DateTime, dynamic> newMap = {};
+    map.forEach((key, value) {
+      newMap[DateTime.parse(key)] = map[key];
+    });
+    newMap.removeWhere((key, value) => key == null || value == null);
+    return newMap;
   }
 
+  // WIDGET BUILD ----------
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(widget.title),
+    return new MaterialApp(
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        primaryColor: Color(0xFF04273D),
+        accentColor: Color(0xFF04273D),
       ),
-      body: Column(
-        mainAxisSize: MainAxisSize.max,
-        children: <Widget>[
-          // Switch out 2 lines below to play with TableCalendar's settings
-          //-----------------------
-          // _buildTableCalendar(), // Active le style slm
-          _buildTableCalendarWithBuilders(), // Active le builder
-          const SizedBox(height: 8.0),
-          _buildButtons(),
-          const SizedBox(height: 8.0),
+      home: DefaultTabController(
+        length: 3,
+        child: Builder(builder: (BuildContext context) {
+          return Scaffold(
+            appBar: AppBar(
+              bottom: TabBar(
+                indicatorColor: Color(0xFF0E86D4),
+                tabs: [
+                  // Tab #1
+                  Tab(icon: Icon(Icons.home)),
 
-          Expanded(child: _buildEventList()),
+                  // Tab #2
+                  Tab(icon: Icon(Icons.calendar_today)),
 
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _incrementCounter,
-        tooltip: 'Increment',
-        child: Icon(Icons.calendar_today),
-      ),
-    );
-  }
-
-  // Simple TableCalendar configuration (using Styles)
-  Widget _buildTableCalendar() {
-    return TableCalendar(
-      calendarController: _calendarController,
-      events: _events,
-      holidays: _holidays,
-      startingDayOfWeek: StartingDayOfWeek.sunday,
-      calendarStyle: CalendarStyle(
-        selectedColor: Colors.pink[700],
-        todayColor: Colors.blue[900],
-        markersColor: Colors.pink[900],
-        outsideDaysVisible: true,
-      ),
-      headerStyle: HeaderStyle(
-        formatButtonTextStyle:
-        TextStyle().copyWith(color: Colors.white, fontSize: 15.0),
-        formatButtonDecoration: BoxDecoration(
-          color: Colors.pink[800],
-          borderRadius: BorderRadius.circular(16.0),
-        ),
-      ),
-      onDaySelected: _onDaySelected,
-      onVisibleDaysChanged: _onVisibleDaysChanged,
-      onCalendarCreated: _onCalendarCreated,
-    );
-  }
-
-  // More advanced TableCalendar configuration (using Builders & Styles)
-  Widget _buildTableCalendarWithBuilders() {
-    return TableCalendar(
-      locale: 'fr_FR',
-      calendarController: _calendarController,
-      events: _events,
-      holidays: _holidays,
-      initialCalendarFormat: CalendarFormat.month,
-      formatAnimation: FormatAnimation.slide,
-      startingDayOfWeek: StartingDayOfWeek.sunday,
-      availableGestures: AvailableGestures.all,
-      availableCalendarFormats: const {
-        CalendarFormat.month: '',
-        CalendarFormat.week: '',
-      },
-      calendarStyle: CalendarStyle(
-        outsideDaysVisible: false,
-        weekendStyle: TextStyle().copyWith(color: Colors.green[900]),
-        holidayStyle: TextStyle().copyWith(color: Colors.amber[900]),
-      ),
-      daysOfWeekStyle: DaysOfWeekStyle(
-        weekendStyle: TextStyle().copyWith(color: Colors.green[950]),
-      ),
-      headerStyle: HeaderStyle(
-        centerHeaderTitle: true,
-        formatButtonVisible: false,
-      ),
-      builders: CalendarBuilders(
-        selectedDayBuilder: (context, date, _) {
-          return FadeTransition(
-            opacity: Tween(begin: 0.0, end: 1.0).animate(_animationController),
-            child: Container(
-              margin: const EdgeInsets.all(4.0),
-              padding: const EdgeInsets.only(top: 5.0, left: 6.0),
-              color: Colors.deepOrange[300],
-              width: 100,
-              height: 100,
-              child: Text(
-                '${date.day}',
-                style: TextStyle().copyWith(fontSize: 16.0),
-              ),
-            ),
-          );
-        },
-        todayDayBuilder: (context, date, _) {
-          return Container(
-              margin: const EdgeInsets.all(4.0),
-              padding: const EdgeInsets.only(top: 5.0, left: 6.0),
-              color: Colors.red[100],
-              width: 100,
-              height: 100,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: <Widget>[
-                  Text(
-                    '${date.day}',
-                    style: TextStyle().copyWith(fontSize: 16.0),
-                  ),
-                  Icon(
-                    Icons.today_rounded,
-                    size: 20.0,
-                  ),
+                  // Tab #3
+                  Tab(icon: Icon(Icons.settings)),
                 ],
-              )
+              ),
+              title: Text('Calendrier Bouks'),
+            ),
+            body: TabBarView(
+              children: [
+                // Tab #1
+                tabPrincipal(
+                    _events, _selectedEvents, _controller, eventsDetailled),
+
+                // Tab #2
+                tabMonthCalendar(_events, _selectedEvents, _controller),
+
+                // Tab #3
+                tabSettings(),
+              ],
+            ),
+            floatingActionButton: FloatingActionButton(
+              child: Icon(Icons.add),
+              onPressed: () {
+                tabIndex = DefaultTabController.of(context).index;
+                _showAddDialog();
+                print(tabIndex);
+              },
+            ),
           );
-        },
-        markersBuilder: (context, date, events, holidays) {
-          final children = <Widget>[];
-
-          if (events.isNotEmpty) {
-            children.add(
-              Positioned(
-                right: 1,
-                bottom: 1,
-                child: _buildEventsMarker(date, events),
-              ),
-            );
-          }
-
-          if (holidays.isNotEmpty) {
-            children.add(
-              Positioned(
-                right: -2,
-                top: -2,
-                child: _buildHolidaysMarker(),
-              ),
-            );
-          }
-
-          return children;
-        },
+        }),
       ),
-      onDaySelected: (date, events, holidays) {
-        _onDaySelected(date, events, holidays);
-        _animationController.forward(from: 0.0);
-      },
-      onVisibleDaysChanged: _onVisibleDaysChanged,
-      onCalendarCreated: _onCalendarCreated,
     );
   }
 
-  Widget _buildEventsMarker(DateTime date, List events) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      decoration: BoxDecoration(
-        shape: BoxShape.rectangle,
-        color: _calendarController.isSelected(date)
-            ? Colors.pink[500]
-            : _calendarController.isToday(date)
-            ? Colors.pink[300]
-            : Colors.pink[400],
-      ),
-      width: 16.0,
-      height: 16.0,
-      child: Center(
-        child: Text(
-          '${events.length}',
-          style: TextStyle().copyWith(
-            color: Colors.white,
-            fontSize: 12.0,
+  _showAddDialog() async {
+    await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          content: TextField(
+            controller: _eventController,
           ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildHolidaysMarker() {
-    return Icon(
-      Icons.add_box,
-      size: 20.0,
-      color: Colors.amber[800],
-    );
-  }
-
-  Widget _buildButtons() {
-    final dateTime = _events.keys.elementAt(_events.length - 2);
-
-    return Column(
-      children: <Widget>[
-        Row(
-          mainAxisSize: MainAxisSize.max,
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: <Widget>[
-            RaisedButton(
-              child: Text('Month'),
+          actions: <Widget>[
+            FlatButton(
+                onPressed: () {
+                  setState(() {
+                    Navigator.pop(context, false);
+                  });
+                },
+                child: Text("Annuler")),
+            FlatButton(
+              child: Text("Sauvegarder"),
               onPressed: () {
-                setState(() {
-                  _calendarController.setCalendarFormat(CalendarFormat.month);
-                });
+                if (tabIndex == 0) {
+                  print(tabIndex);
+                } else if (tabIndex == 1) {
+                  if (_eventController.text.isEmpty) {
+                    print('0');
+                    print(_controller.selectedDay);
+                    return;
+                  }
+                  setState(() {
+                    if (_events[_controller.selectedDay] != null) {
+                      print('1');
+                      _events[_controller.selectedDay]
+                          .add(_eventController.text);
+                    } else {
+                      _events[_controller.selectedDay] = [
+                        _eventController.text
+                      ];
+                      print('2');
+                    }
+                    prefs.setString(
+                        "events", json.encode(encodeMap(_events)));
+                    _eventController.clear();
+                    Navigator.pop(context, true);
+                  });
+                } else if (tabIndex == 2) {
+                  print(tabIndex);
+                }
               },
-            ),
-            RaisedButton(
-              child: Text('2 weeks'),
-              onPressed: () {
-                setState(() {
-                  _calendarController
-                      .setCalendarFormat(CalendarFormat.twoWeeks);
-                });
-              },
-            ),
-            RaisedButton(
-              child: Text('Week'),
-              onPressed: () {
-                setState(() {
-                  _calendarController.setCalendarFormat(CalendarFormat.week);
-                });
-              },
-            ),
+            )
           ],
-        ),
-        const SizedBox(height: 8.0),
-        RaisedButton(
-          child: Text(
-              'Set day ${dateTime.day}-${dateTime.month}-${dateTime.year}'),
-          onPressed: () {
-            _calendarController.setSelectedDay(
-              DateTime(dateTime.year, dateTime.month, dateTime.day),
-              runCallback: true,
-            );
-
-          },
-        ),
-      ],
-    );
-  }
-
-  Widget _buildEventList() {
-    return ListView(
-      children: _selectedEvents
-          .map((event) => Container(
-        decoration: BoxDecoration(
-          border: Border.all(width: 0.8),
-          borderRadius: BorderRadius.circular(12.0),
-        ),
-        margin:
-        const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-        child: ListTile(
-          title: Text(event.toString()),
-          onTap: () => print('$event tapped!'),
-        ),
-      ))
-          .toList(),
-    );
+        ));
+    //if (tabIndex == 1) {
+    //  setState(() {
+    //    _selectedEvents = _events[_controller.selectedDay];
+    //  });
+    //}
   }
 }
